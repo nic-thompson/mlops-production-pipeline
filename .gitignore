@@ -1,33 +1,62 @@
+# ----------------------
 # Python
+# ----------------------
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 
 # Virtual environments
-ml-env/
+.venv/
 venv/
-.env/
+env/
 
-# MLflow
-mlruns/
-mlartifacts/
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
 
-# Model artifacts
-models/*
-*.pkl
-*.joblib
+# ----------------------
+# Testing / Coverage
+# ----------------------
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 
-# Jupyter
-.ipynb_checkpoints/
+# ----------------------
+# Logs
+# ----------------------
+*.log
+logs/
 
+# ----------------------
+# Environment variables
+# ----------------------
+.env
+.env.*
+
+# ----------------------
+# IDE / Editor
+# ----------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ----------------------
 # macOS
+# ----------------------
 .DS_Store
 
-# VSCode
-.vscode/
+# ----------------------
+# Jupyter (if you ever add notebooks)
+# ----------------------
+.ipynb_checkpoints/
 
-# Logs
-*.log
-
-/data
+# ----------------------
+# ML Artifacts (if added later)
+# ----------------------
+models/
+artifacts/
+mlruns/
