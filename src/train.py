@@ -1,4 +1,13 @@
-print("Starting script...")
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
+logger.info("Starting training pipeline")
+
 import pandas as pd
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
@@ -30,7 +39,7 @@ def main():
     predictions = model.predict(X_test)
     accuracy = accuracy_score(y_test, predictions)
 
-    print(f"Model accuracy: {accuracy:.4f}")
+    logger.info("Model accuracy: %.4f", accuracy)
 
 
 if __name__ == "__main__":
