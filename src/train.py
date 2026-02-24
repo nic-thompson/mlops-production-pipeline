@@ -1,12 +1,11 @@
 import logging
+
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
 
 logger = logging.getLogger(__name__)
-
-logger.info("Starting training pipeline")
 
 import pandas as pd
 from sklearn.datasets import load_breast_cancer
@@ -16,6 +15,8 @@ from sklearn.metrics import accuracy_score
 
 
 def main():
+    logger.info("Starting training pipeline")
+
     # Load dataset
     data = load_breast_cancer()
     X = pd.DataFrame(data.data, columns=data.feature_names)
