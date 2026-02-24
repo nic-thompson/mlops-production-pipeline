@@ -1,6 +1,8 @@
+import yaml
 import logging
 import argparse
 import pandas as pd
+from pathlib import Path
 from sklearn.datasets import load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -26,15 +28,29 @@ logger = logging.getLogger(__name__)
 
 def parse_args():
         parser = argparse.ArgumentParser(description="Training pipeline")
+
         parser.add_argument(
             "--log-level",
             default="INFO",
             help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
         )
+        
+        parser.add_argument(
+            "--config",
+            default="config.yaml",
+            help="Path to configuration file",
+        )
+
         return parser.parse_args()
 
-def main():
+def load_config(config_path: str):
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+    
+def main(args):
     logger = logging.getLogger(__name__)
+
+    config = load_config(args.config)
     logger.info("Starting training pipeline")
 
     # Load dataset
@@ -44,7 +60,10 @@ def main():
 
     # Split dataset
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X,
+        y, 
+        test_size=config["data"]["test_size"], 
+        random_state=config["data"]["random_state"]
     )
 
     logger.debug(
@@ -53,11 +72,7 @@ def main():
             X_test.shape)
 
     # Train model
-    model = RandomForestClassifier(
-        n_estimators=100,
-        max_depth=5,
-        random_state=42,
-    )
+    model = RandomForestClassifier(**config["model"])
 
     logger.debug("Training parameters: %s", model.get_params())
 
@@ -73,8 +88,5 @@ def main():
 if __name__ == "__main__":
     args = parse_args()
     configure_logging(args.log_level)
-
-    logger = logging.getLogger(__name__)
-
-    main()
+    main(args)
 
