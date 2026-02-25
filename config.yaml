@@ -6,3 +6,7 @@ model:
   n_estimators: 10
   max_depth: 2
   random_state: 42
+
+output:
+  model_dir: models
+  model_name: random_forest.joblib

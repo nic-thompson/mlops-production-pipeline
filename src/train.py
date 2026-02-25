@@ -1,4 +1,5 @@
 import yaml
+import joblib
 import logging
 import argparse
 import pandas as pd
@@ -83,6 +84,16 @@ def main(args):
     accuracy = accuracy_score(y_test, predictions)
 
     logger.info("Model accuracy: %.4f", accuracy)
+
+    # Save model artifact
+    model_dir = Path(config["output"]["model_dir"])
+    model_dir.mkdir(parents=True, exist_ok=True)
+
+    model_path = model_dir / config["output"]["model_name"]
+
+    joblib.dump(model, model_path)
+
+    logger.info("Model saved to %s", model_path)
 
 
 if __name__ == "__main__":
