@@ -59,4 +59,5 @@ logs/
 # ----------------------
 models/
 artifacts/
+artifacts/models
 mlruns/
