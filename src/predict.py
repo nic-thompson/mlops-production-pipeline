@@ -4,6 +4,7 @@ import argparse
 import joblib
 import pandas as pd
 from pathlib import Path
+from registry import ModelRegistry
 from sklearn.datasets import load_breast_cancer
 
 
@@ -41,6 +42,27 @@ def load_config(config_path: str):
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
+def load_production_model(models_base_path: Path):
+    registry_path = models_base_path / "registry.json"
+    registry = ModelRegistry(registry_path)
+
+    production_version = registry.get_production()
+    if production_version is None:
+        raise RuntimeError("No production model set in registry.")
+    
+    model_path = (
+        models_base_path
+        / production_version
+        / "model.joblib"
+    )
+
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Production model artifact not found: {model_path}"
+        )
+    
+    return model_path, joblib.load(model_path)
+
 def main(args):
         logger = logging.getLogger(__name__)
         logger.info("Starting inference pipeline")
@@ -48,13 +70,10 @@ def main(args):
         config = load_config(args.config)
 
         # Load model artifact
-        model_path = Path(config["output"]["model_dir"]) / config["output"]["model_name"]
-
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model not found at {model_path}")
+        models_base_path = Path(config["output"]["model_dir"])  
+        model_path, model = load_production_model(models_base_path)
         
-        model = joblib.load(model_path)
-        logger.info("Loaded model from %s", model_path)
+        logger.info("Loaded production model from %s", model_path)
 
         # Load dataset (placeholder for real input)
         data = load_breast_cancer()
