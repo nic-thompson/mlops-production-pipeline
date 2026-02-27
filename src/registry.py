@@ -29,7 +29,7 @@ class ModelRegistry:
         return self._load()["production"]
     
     def get_staging(self):
-        return self.load()["staging"]
+        return self._load()["staging"]
     
     def promote_to_staging(self, version: str):
         data = self._load()
