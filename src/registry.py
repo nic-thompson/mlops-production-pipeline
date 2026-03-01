@@ -48,6 +48,19 @@ class ModelRegistry:
         
         if not isinstance(data["archived"], list):
             raise RuntimeError("'archived' must be a list.")
+        
+        # Remove duplicates defensively
+        data["archived"] = list(dict.fromkeys(data["archived"]))
+
+        # Production must not be in archive
+        if data["production"] in data["archived"]:
+            data["archived"].remove(data["production"])
+        
+        # Staging must not be in archive
+        if data["staging"] in data["archived"]:
+            data["archived"].remove(data["staging"])
+
+        self._atomic_save(data)
 
     def _artifact_exists(self, version: str) -> bool:
         version_path = self.registry_path.parent / version
@@ -69,7 +82,7 @@ class ModelRegistry:
     
     def promote_to_staging(self, version: str):
         if not self.version_exists(version):
-            raise ValueError(f"Version '{version} does not exist.")
+            raise ValueError(f"Version '{version}' does not exist.")
         
         data = self._load()
         data["staging"] = version
@@ -77,14 +90,43 @@ class ModelRegistry:
     
     def promote_to_production(self, version: str):
         if not self.version_exists(version):
-            raise ValueError(f"Version '{version} does not exist.")
+            raise ValueError(f"Version '{version}' does not exist.")
         
         data = self._load()
 
         current_prod = data["production"]
-        if current_prod:
-            data["archived"].append(current_prod)
+        if current_prod and current_prod != version:
+            if current_prod not in data["archived"]:
+                    data["archived"].append(current_prod)
         
         data["production"] = version
         data["staging"] = None
+        
+        self._atomic_save(data)
+
+    def rollback_production(self):
+        data = self._load()
+
+        if data["production"] is None:
+            raise RuntimeError("No production model set. Cannot rollback.")
+        
+        if not data["archived"]:
+            raise RuntimeError("No archived versions available for rollback.")
+        
+        current_prod = data["production"]
+        previous_version = data["archived"][-1] # LIFO semantics
+
+        # Ensure previous version still exists on disk
+        if not self._artifact_exists(previous_version):
+            raise RuntimeError(
+                f"Archived version '{previous_version}' does not exist on disk."
+            )
+        data["archived"].pop()
+        
+        # Move current production into archive 
+        data["archived"].append(current_prod)
+
+        # Promote previous version to production
+        data["production"] = previous_version                      
+                
         self._atomic_save(data)
