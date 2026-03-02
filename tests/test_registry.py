@@ -73,7 +73,7 @@ def test_corrupted_registry_file_raises(tmp_path):
     registry_path = tmp_path / "registry.json"
 
     # Wrie invalid JSON
-    registry_path.write_text("invalid json")
+    registry_path.write_text("{invalid json")
 
-    with pytest.raises(RuntimeError, matches="corrupted"):
+    with pytest.raises(RuntimeError, match="corrupted"):
         ModelRegistry(registry_path)
