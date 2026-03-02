@@ -77,3 +77,11 @@ def test_corrupted_registry_file_raises(tmp_path):
 
     with pytest.raises(RuntimeError, match="corrupted"):
         ModelRegistry(registry_path)
+
+def test_invalid_schema_raises(tmp_path):
+    registry_path = tmp_path / "registry.json"
+    
+    registry_path.write_text('{"production": null}') # Missing keys
+
+    with pytest.raises(RuntimeError, match="schema"):
+        ModelRegistry(registry_path)
