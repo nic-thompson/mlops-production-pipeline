@@ -85,3 +85,17 @@ def test_invalid_schema_raises(tmp_path):
 
     with pytest.raises(RuntimeError, match="schema"):
         ModelRegistry(registry_path)
+
+def test_archive_must_be_a_list(tmp_path):
+    registry_path = tmp_path / "registry.json"
+
+    bad_data = {
+        "production": None,
+        "staging": None,
+        "archived": "not a list"
+    }
+
+    registry_path.write_text(json.dumps(bad_data))
+
+    with pytest.raises(RuntimeError, match="archived"):
+        ModelRegistry(registry_path)
