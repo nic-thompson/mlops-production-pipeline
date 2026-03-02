@@ -68,3 +68,12 @@ def test_invariant_production_not_in_archive(tmp_path):
     data = load_registry(registry_path)
 
     assert data["archived"] == []
+
+def test_corrupted_registry_file_raises(tmp_path):
+    registry_path = tmp_path / "registry.json"
+
+    # Wrie invalid JSON
+    registry_path.write_text("invalid json")
+
+    with pytest.raises(RuntimeError, matches="corrupted"):
+        ModelRegistry(registry_path)
