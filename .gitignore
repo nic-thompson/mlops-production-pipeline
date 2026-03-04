@@ -61,3 +61,13 @@ models/
 artifacts/
 artifacts/models
 mlruns/
+
+# Data
+data/
+*.json
+
+# Python
+__pycache__
+*.pyc
+.venv/
+
