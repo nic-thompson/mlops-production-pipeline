@@ -1,6 +1,7 @@
-from typing import Dict
 import pandas as pd
+from typing import Dict
 from scipy.stats import ks_2samp
+from datetime import datetime 
 
 class DriftDetector:
     def __init__(self, threshold: float = 0.05):
@@ -32,3 +33,20 @@ class DriftDetector:
     
     def has_drift(self, drift_scores: Dict[str, float]) -> bool:
         return any(p < self.threshold for p in drift_scores.values())        
+    
+    # Public API
+    def detect(
+            self,
+            reference_df: pd.DataFrame,
+            current_df: pd.DataFrame
+    ) -> Dict:
+
+            drift_scores = self.detect_feature_drift(reference_df, current_df)
+            drift_detected = self.has_drift(drift_scores)
+
+            return {
+                 "timestamp": datetime.utcnow().isoformat(),
+                 "threshold": self.threshold,
+                 "drift_detected": drift_detected,
+                 "feature_p_values": drift_scores,
+            }
