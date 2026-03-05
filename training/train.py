@@ -80,7 +80,7 @@ def save_artifacts(model, metrics, version: str):
     artifact_dir = Path("artifacts/models") / version
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Saving artifacts to {artifact_dir}")
+    logger.info(f"Saving artifacts to {artifact_dir}")
 
     # save model
     model_path = artifact_dir / "model.joblib"
