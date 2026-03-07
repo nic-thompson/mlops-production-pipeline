@@ -6,6 +6,8 @@ from training.train import generate_model_version, train_model, save_artifacts
 
 import pandas as pd
 
+MIN_ACCURACY = 0.85
+
 # ---------------------------
 # Logging
 # ---------------------------
@@ -30,6 +32,15 @@ def run_pipeline():
     model, metrics = train_model(df)
 
     logger.info(f"Training complete. Metrics: {metrics}")
+
+    # Evaluation Gate
+    accuracy = metrics["accuracy"]
+
+    if accuracy < MIN_ACCURACY:
+        logger.error(
+            f"Model failed evaluation gate: accuracy={accuracy} < threshold={MIN_ACCURACY}"
+        )
+        raise RuntimeError("Model did not meet minimum accuracy threshold.")
 
     version = generate_model_version()
 
