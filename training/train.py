@@ -1,16 +1,17 @@
 import json
+import yaml
 import joblib
 import hashlib
 import logging
 import subprocess
 import pandas as pd
 from pathlib import Path
+from typing import Dict, Tuple
+from sklearn.base import BaseEstimator
 from datetime import datetime, timezone
 from sklearn.metrics import accuracy_score
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-
-TRAIN_DATA_PATH = "data/train.parquet"
 
 # --------------------------------------------------
 # Logging
@@ -54,22 +55,32 @@ def dataset_hash(path: str) -> str:
 
     return sha.hexdigest()
 
+def load_config(path="config/training.yaml"):
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
 # --------------------------------------------------
 # Training
 # --------------------------------------------------
 
-def train_model(df: pd.DataFrame):
-    X = df.drop(columns=["target"])
-    y = df["target"]
+def train_model(
+        df: pd.DataFrame,
+        target_col: str,
+        test_size: float,
+        random_state: int,
+        model_params: Dict    
+    ) -> Tuple[BaseEstimator, Dict]:
+
+    X = df.drop(columns=[target_col])
+    y = df[target_col]
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
+        X, y, 
+        test_size=test_size, 
+        random_state=random_state
     ) 
 
-    model = RandomForestClassifier(
-        n_estimators=100,
-        random_state=42,
-    )
+    model = RandomForestClassifier(**model_params)
 
     model.fit(X_train, y_train)
 
@@ -86,34 +97,44 @@ def train_model(df: pd.DataFrame):
 # Atrtifact Writing
 # --------------------------------------------------
 
-def save_artifacts(model, metrics, version: str, df: pd.DataFrame):
+def save_artifacts(
+    model, 
+    metrics: dict, 
+    version: str,
+    dataset_metadata: dict
+):
 
     artifact_dir = Path("artifacts/models") / version
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Saving artifacts to {artifact_dir}")
 
-    # save model
+    # --------------------------
+    # Save model
+    # --------------------------
+
     model_path = artifact_dir / "model.joblib"
     joblib.dump(model, model_path)
 
-    # save metrics
+    # --------------------------
+    # Save metricts
+    # --------------------------
+
     metrics_path = artifact_dir / "metrics.json"
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=2)
 
-    # save metadata
+    # --------------------------
+    # Save metadata
+    # --------------------------
+
     metadata = {
         "version": version,
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "git_commit": version.split("_")[1],
         "model_type": model.__class__.__name__,
 
-        "dataset": {
-            "path": TRAIN_DATA_PATH,
-            "rows": len(df),
-            "sha265": dataset_hash("data/train.parquet")
-        },
+        "dataset": dataset_metadata,
 
         "hyperparameters": model.get_params()
     }
@@ -131,21 +152,47 @@ def save_artifacts(model, metrics, version: str, df: pd.DataFrame):
 # --------------------------------------------------
 
 def main():
+
+    config = load_config()
+
+    dataset_path = config["dataset"]["path"]
+    target_col = config["training"]["target_column"]
+
     logger.info("Loading training dataset...")
+    df = pd.read_parquet(dataset_path)
 
-    df = pd.read_parquet(TRAIN_DATA_PATH)
-
-    logger.info("Training model...")
-
-    model, metrics = train_model(df)
-
-    logger.info(f"Training complete. Metrics: {metrics}")
+    model, metrics = train_model(
+        df,
+        target_col,
+        config["dataset"]["test_size"],
+        config["dataset"]["random_state"],
+        config["model"]["params"]
+    )
 
     version = generate_model_version()
 
     logger.info(f"Generate model version: {version}")
 
-    save_artifacts(model, metrics, version, df)
+    schema = {
+        col: str(dtype)
+        for col, dtype in df.dtypes.items()
+         if col != target_col
+    }
+
+    dataset_metadata = {
+        "path": dataset_path,
+        "rows": len(df),
+        "sha256": dataset_hash(dataset_path),
+        "columns": [c for c in df.columns if c != target_col],
+        "target": "target",
+        "schema": schema
+    }
+
+    save_artifacts(
+        model=model, 
+        metrics=metrics, 
+        version=version,
+        dataset_metadata=dataset_metadata)
 
     logger.info("Training pipeline finished successfully.")
 
