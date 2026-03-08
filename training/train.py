@@ -107,13 +107,15 @@ def save_artifacts(model, metrics, version: str, df: pd.DataFrame):
         "version": version,
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "git_commit": version.split("_")[1],
-        "model_type": "RandomForrestClassifier",
+        "model_type": model.__class__.__name__,
 
         "dataset": {
             "path": TRAIN_DATA_PATH,
             "rows": len(df),
             "sha265": dataset_hash("data/train.parquet")
-        }
+        },
+
+        "hyperparameters": model.get_params()
     }
 
     metadata_path = artifact_dir / "metadata.json"
