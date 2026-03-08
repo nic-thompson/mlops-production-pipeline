@@ -1,14 +1,16 @@
 import json
+import joblib
+import hashlib
 import logging
 import subprocess
-from datetime import datetime, timezone
-from pathlib import Path
-
-import joblib
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from pathlib import Path
+from datetime import datetime, timezone
 from sklearn.metrics import accuracy_score
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+
+TRAIN_DATA_PATH = "data/train.parquet"
 
 # --------------------------------------------------
 # Logging
@@ -43,6 +45,15 @@ def generate_model_version() -> str:
     git_commit = get_git_commit()
     return f"{timestamp}_{git_commit}"
 
+def dataset_hash(path: str) -> str:
+    sha = hashlib.sha256()
+
+    with open(path, "rb") as f:
+        while chunk := f.read(8192):
+            sha.update(chunk)
+
+    return sha.hexdigest()
+
 # --------------------------------------------------
 # Training
 # --------------------------------------------------
@@ -75,7 +86,7 @@ def train_model(df: pd.DataFrame):
 # Atrtifact Writing
 # --------------------------------------------------
 
-def save_artifacts(model, metrics, version: str):
+def save_artifacts(model, metrics, version: str, df: pd.DataFrame):
 
     artifact_dir = Path("artifacts/models") / version
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -97,6 +108,12 @@ def save_artifacts(model, metrics, version: str):
         "trained_at": datetime.now(timezone.utc).isoformat(),
         "git_commit": version.split("_")[1],
         "model_type": "RandomForrestClassifier",
+
+        "dataset": {
+            "path": TRAIN_DATA_PATH,
+            "rows": len(df),
+            "sha265": dataset_hash("data/train.parquet")
+        }
     }
 
     metadata_path = artifact_dir / "metadata.json"
@@ -114,7 +131,7 @@ def save_artifacts(model, metrics, version: str):
 def main():
     logger.info("Loading training dataset...")
 
-    df = pd.read_parquet("data/train.parquet")
+    df = pd.read_parquet(TRAIN_DATA_PATH)
 
     logger.info("Training model...")
 
@@ -126,7 +143,7 @@ def main():
 
     logger.info(f"Generate model version: {version}")
 
-    save_artifacts(model, metrics, version)
+    save_artifacts(model, metrics, version, df)
 
     logger.info("Training pipeline finished successfully.")
 
