@@ -33,14 +33,14 @@ def parse_args():
     parser.add_argument(
         "--config",
         default="config.yaml",
-        help="Path to configuration file)",
+        help="Path to configuration file.",
     )
 
     parser.add_argument(
         "--version",
         type= str,
         default=None,
-        help="Explicit model version override (bypasses production)"
+        help="Explicit model version override (bypasses production)."
     )
 
     return parser.parse_args()
@@ -68,37 +68,81 @@ def resolve_model_version(registry: ModelRegistry, override_version: str | None)
     
     return production_version, "production"
 
+def validate_schema(df: pd.DataFrame, metadata: dict):
+     """
+     Validate dataframe schema against model metadata.
+     """
+
+     dataset_meta = metadata["dataset"]
+
+     expected_columns = dataset_meta["columns"]
+     expected_schema = dataset_meta["schema"]
+
+     # Check column set
+     incoming_columns = list(df.columns)
+
+     if incoming_columns != expected_columns:
+          raise RuntimeError(
+               f"Feature mismatch.\n"
+               f"Expected columns {expected_columns}"
+               f"Received columns {incoming_columns}"
+          )
+     # Check data types
+     for col, dtype in expected_schema.items():
+          incoming_dtype = str(df[col].dtype)
+
+          if incoming_dtype != dtype:
+               raise RuntimeError(
+                    f"Type mismatch for column '{col}': "
+                    f"expected {dtype} got {incoming_dtype}"
+               )
+
 def main(args):
-        logger = logging.getLogger(__name__)
-        logger.info("Starting inference pipeline")
+     logger = logging.getLogger(__name__)
+     logger.info("Starting inference pipeline")
 
-        config = load_config(args.config)
-        override_version = args.version #None or str
+     config = load_config(args.config)
+     override_version = args.version #None or str
 
-        # Load model artifact
-        models_base_path = Path(config["output"]["model_dir"])  
+     # Load model artifact
+     models_base_path = Path(config["output"]["model_dir"])  
 
-        registry_path = models_base_path / "registry.json"
-        registry = ModelRegistry(registry_path)
+     registry_path = models_base_path / "registry.json"
+     registry = ModelRegistry(registry_path)
 
-        version, source = resolve_model_version(registry, override_version)
+     version, source = resolve_model_version(registry, override_version)
 
-        model_path = (
-             models_base_path
-             / version
-             / "model.joblib"
-        )
+     model_path = (
+          models_base_path
+          / version
+          / "model.joblib"
+     )
 
-        if not model_path.exists():
-             raise FileNotFoundError(
-                  f"Model artifact not found for version '{version}': {model_path}"
-             )
-        
-        model = joblib.load(model_path)
+     if not model_path.exists():
+          raise FileNotFoundError(
+               f"Model artifact not found for version '{version}': {model_path}"
+          )
+     
+     model = joblib.load(model_path)
 
-        production_version = registry.get_production()
+     metadata_path = (
+          models_base_path
+          / version
+          / "metadata.json"
+     )
 
-        if source == "override":
+     if not metadata_path.exists():
+          raise RuntimeError(
+               f"Metadata not found for version '{version}'"
+          )
+     
+     import json
+     with open(metadata_path) as f:
+          metadata = json.load(f)        
+     
+     production_version = registry.get_production()
+
+     if source == "override":
           if production_version:
                logger.warning(
                     "Loading OVERRIDE model version '%s' (production is '%s')",
@@ -111,15 +155,20 @@ def main(args):
                     version,
                )
 
-        # Load dataset (placeholder for real input)
-        data = load_breast_cancer()
-        X = pd.DataFrame(data.data, columns=data.feature_names)
+     # Load inference data
+     df = pd.read_parquet("data/train.parquet")
 
-        # Run predictions
-        predictions = model.predict(X)
+     target_col = metadata["dataset"]["target"]
+     X = df.drop(columns=[target_col])
 
-        logger.info("Generated %d predictions", len(predictions))
-        logger.debug("Sample predictions: %s", predictions[:10])
+     # Validate schema before prediction
+     validate_schema(X, metadata)
+     
+     # Run predictions
+     predictions = model.predict(X)
+
+     logger.info("Generated %d predictions", len(predictions))
+     logger.debug("Sample predictions: %s", predictions[:10])
 
 if __name__ == "__main__":
     args = parse_args()
