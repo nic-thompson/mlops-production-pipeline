@@ -64,6 +64,7 @@ mlruns/
 
 # Data
 data/
+data/predictions
 *.json
 
 # Python

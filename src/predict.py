@@ -5,8 +5,9 @@ import joblib
 import pandas as pd
 from pathlib import Path
 from registry import ModelRegistry
-from sklearn.datasets import load_breast_cancer
+from datetime import datetime, timezone
 
+PREDICTION_LOG_PATH = Path("data/predictions/predictions.parquet")
 
 def configure_logging(log_level: str):
     log_level = log_level.upper()
@@ -97,6 +98,21 @@ def validate_schema(df: pd.DataFrame, metadata: dict):
                     f"expected {dtype} got {incoming_dtype}"
                )
 
+def log_predictions(X, predictions, model_version):
+
+     records = X.copy()
+     records["prediction"] = predictions
+     records["model_version"] = model_version
+     records["timestamp"] = datetime.now(timezone.utc).isoformat()
+
+     PREDICTION_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+     if PREDICTION_LOG_PATH.exists():
+          existing = pd.read_parquet(PREDICTION_LOG_PATH)
+          records = pd.concat([existing, records], ignore_index=True)
+     
+     records.to_parquet(PREDICTION_LOG_PATH)
+
 def main(args):
      logger = logging.getLogger(__name__)
      logger.info("Starting inference pipeline")
@@ -166,6 +182,8 @@ def main(args):
      
      # Run predictions
      predictions = model.predict(X)
+
+     log_predictions(X, predictions, version)
 
      logger.info("Generated %d predictions", len(predictions))
      logger.debug("Sample predictions: %s", predictions[:10])
