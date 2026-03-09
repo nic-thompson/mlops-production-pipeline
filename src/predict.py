@@ -7,8 +7,6 @@ from pathlib import Path
 from registry import ModelRegistry
 from datetime import datetime, timezone
 
-PREDICTION_LOG_PATH = Path("data/predictions/predictions.parquet")
-
 def configure_logging(log_level: str):
     log_level = log_level.upper()
 
@@ -100,18 +98,24 @@ def validate_schema(df: pd.DataFrame, metadata: dict):
 
 def log_predictions(X, predictions, model_version):
 
+     now = datetime.now(timezone.utc)
+
+     date_str = now.strftime("%Y-%m-%d")
+
+     log_path = Path("data/predictions") / f"{date_str}.parquet"
+
      records = X.copy()
      records["prediction"] = predictions
      records["model_version"] = model_version
      records["timestamp"] = datetime.now(timezone.utc).isoformat()
 
-     PREDICTION_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-     if PREDICTION_LOG_PATH.exists():
-          existing = pd.read_parquet(PREDICTION_LOG_PATH)
+     if log_path.exists():
+          existing = pd.read_parquet(log_path)
           records = pd.concat([existing, records], ignore_index=True)
      
-     records.to_parquet(PREDICTION_LOG_PATH)
+     records.to_parquet(log_path)
 
 def main(args):
      logger = logging.getLogger(__name__)
