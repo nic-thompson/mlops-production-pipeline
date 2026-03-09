@@ -32,12 +32,14 @@ def promote_model():
         logger.info("Loading model registry...")
         registry = ModelRegistry(REGISTRY_PATH)
 
-        staging_version = registry.get_staging
+        staging_version = registry.get_staging()
 
         if staging_version is None:
             logger.error("No staging model available to promote.")
             return 1
         
+        registry.promote_to_production(staging_version)
+
         logger.info(f"Model {staging_version} successfully promoted to production.")
 
         return 0
