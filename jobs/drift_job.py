@@ -4,7 +4,7 @@ import json
 import logging
 import argparse
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 from src.drift import DriftDetector
@@ -14,29 +14,20 @@ def parse_args():
 
     parser.add_argument(
         "--reference",
-        type=str,
-        required=True,
-        help="Path to reference dataset (parquet)"
-    )
-
-    parser.add_argument(
-        "--current",
-        type=str,
-        required=True,
-        help="Path to current dataset (parquet)"
+        default="data/train.parquet",
+        help="Reference dataset path"
     )
 
     parser.add_argument(
         "--threshold",
         type=float,
-        default=0.2,
+        default=0.5,
         help="Drift detection threshold (default=0.2)"
     )
 
     parser.add_argument(
         "--output",
-        type=str,
-        required=True,
+        default="reports/drift_report.json",
         help="Path to output drift report JSON"
     )
 
@@ -59,7 +50,6 @@ logger = logging.getLogger(__name__)
 
 def run_drift_job(
         reference_path: str,
-        current_path: str,
         threshold: float,
         output_path: str
 ) -> int:
@@ -67,7 +57,7 @@ def run_drift_job(
         logger.info("Logging datasets...")
 
         reference_df = pd.read_parquet(reference_path)
-        current_df = pd.read_parquet(current_path)
+        current_df = load_recent_predictions(days=1)
 
         logger.info("Running drift detection...")
         detector = DriftDetector(threshold=threshold)
@@ -93,6 +83,29 @@ def run_drift_job(
         logger.exception("Drift job failed.")
         return 2
     
+def load_recent_predictions(hours=24):
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+    files = list(Path("data/predictions").glob("*.parquet"))
+
+    recent_files = [
+        f for f in files
+        if datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc) >= cutoff
+    ]
+
+    if not recent_files:
+        raise RuntimeError("No recent prediction logs found.")
+
+    dfs = [pd.read_parquet(f) for f in recent_files]
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    # Remove monitoring columns
+    df = df.drop(columns=["prediction", "model_version", "timestamp"], errors="ignore")  
+
+    return df
+  
 # ---------------------------------------------------------
 # CLI Entrypoint
 # ---------------------------------------------------------
@@ -102,7 +115,6 @@ def main():
     
     exit_code = run_drift_job(
         reference_path=args.reference,
-        current_path=args.current,
         threshold=args.threshold,
         output_path=args.output
     )
