@@ -11,4 +11,5 @@ model:
 
 training:
   target_column: target
+  min_accuracy: 0.90
 
