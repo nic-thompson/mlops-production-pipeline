@@ -1,9 +1,7 @@
 import pandas as pd
-from drift import DriftDetector
+from mlops.drift import DriftDetector
 
 def test_no_drift():
-    import pandas as pd
-    from drift import DriftDetector
 
     ref = pd.DataFrame({"x": [1, 2, 3, 4, 5]})
     cur = pd.DataFrame({"x": [1, 2, 3, 4, 5]})

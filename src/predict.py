@@ -1,11 +1,19 @@
-import yaml
-import logging
 import argparse
+import json
+import logging
+import yaml
 import joblib
 import pandas as pd
+
 from pathlib import Path
-from registry import ModelRegistry
-from datetime import datetime, timezone
+
+from mlops.registry import ModelRegistry
+from mlops.schema_validation import validate_schema
+from mlops.prediction_logger import log_predictions
+
+# ----------------------------------------------------
+# Logging
+# ----------------------------------------------------
 
 def configure_logging(log_level: str):
     log_level = log_level.upper()
@@ -20,14 +28,13 @@ def configure_logging(log_level: str):
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
 
+
+# ----------------------------------------------------
+# CLI
+# ----------------------------------------------------
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Inference pipeline")
-
-    parser.add_argument(
-        "--log-level",
-        default="INFO",
-        help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
-    )
 
     parser.add_argument(
         "--config",
@@ -37,160 +44,101 @@ def parse_args():
 
     parser.add_argument(
         "--version",
-        type= str,
         default=None,
         help="Explicit model version override (bypasses production)."
     )
 
+    parser.add_argument(
+        "--log-level",
+        default="INFO",
+        help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+    )
+
     return parser.parse_args()
+
+# ----------------------------------------------------
+# Utilities
+# ----------------------------------------------------
 
 def load_config(config_path: str):
     with open(config_path, "r") as f:
         return yaml.safe_load(f)
 
-def resolve_model_version(registry: ModelRegistry, override_version: str | None):
-    """
-    Decide which model version to load. 
-    Returns (version, source) where source is either override or production 
-    """
+def resolve_model_version(registry: ModelRegistry, override: str | None):
 
-    if override_version:
-         if not registry.version_exists(override_version):
+    if override:
+         if not registry.version_exists(override):
               raise RuntimeError(
-                   f"Requested version '{override_version}' not found in registry."
+                   f"Requested version '{override}' not found in registry."
               )
-         return override_version, "override"
+         return override, "override"
     
-    production_version = registry.get_production()
-    if production_version is None:
-         raise RuntimeError("No production model set in registry.")
+    version = registry.get_production()
+
+    if version is None:
+         raise RuntimeError("No production model set.")
     
-    return production_version, "production"
+    return version, "production"
 
-def validate_schema(df: pd.DataFrame, metadata: dict):
-     """
-     Validate dataframe schema against model metadata.
-     """
+def load_model(models_path: Path, version: str):
 
-     dataset_meta = metadata["dataset"]
+     model_path = models_path / version / "model.joblib"
 
-     expected_columns = dataset_meta["columns"]
-     expected_schema = dataset_meta["schema"]
-
-     # Check column set
-     incoming_columns = list(df.columns)
-
-     if incoming_columns != expected_columns:
-          raise RuntimeError(
-               f"Feature mismatch.\n"
-               f"Expected columns {expected_columns}"
-               f"Received columns {incoming_columns}"
-          )
-     # Check data types
-     for col, dtype in expected_schema.items():
-          incoming_dtype = str(df[col].dtype)
-
-          if incoming_dtype != dtype:
-               raise RuntimeError(
-                    f"Type mismatch for column '{col}': "
-                    f"expected {dtype} got {incoming_dtype}"
-               )
-
-def log_predictions(X, predictions, model_version):
-
-     now = datetime.now(timezone.utc)
-
-     date_str = now.strftime("%Y-%m-%d")
-
-     log_path = Path("data/predictions") / f"{date_str}.parquet"
-
-     records = X.copy()
-     records["prediction"] = predictions
-     records["model_version"] = model_version
-     records["timestamp"] = datetime.now(timezone.utc).isoformat()
-
-     log_path.parent.mkdir(parents=True, exist_ok=True)
-
-     if log_path.exists():
-          existing = pd.read_parquet(log_path)
-          records = pd.concat([existing, records], ignore_index=True)
+     if not model_path.exists():
+          raise FileNotFoundError(f"Model artifact missing: {model_path}")
      
-     records.to_parquet(log_path)
+     return joblib.load(model_path)
+
+def load_metadata(models_path: Path, version: str):
+
+     metadata_path = models_path / version / "metadata.json"
+
+     if not metadata_path.exists():
+          raise RuntimeError(f"Metadta missing for version '{version}'")
+     
+     with open(metadata_path) as f:
+          return json.load(f)
+
+# ----------------------------------------------------
+# Main
+# ----------------------------------------------------
 
 def main(args):
+
      logger = logging.getLogger(__name__)
      logger.info("Starting inference pipeline")
 
      config = load_config(args.config)
-     override_version = args.version #None or str
 
-     # Load model artifact
-     models_base_path = Path(config["output"]["model_dir"])  
+     models_path = Path(config["output"]["model_dir"])  
+     registry = ModelRegistry(models_path / "registry.json")
 
-     registry_path = models_base_path / "registry.json"
-     registry = ModelRegistry(registry_path)
-
-     version, source = resolve_model_version(registry, override_version)
-
-     model_path = (
-          models_base_path
-          / version
-          / "model.joblib"
-     )
-
-     if not model_path.exists():
-          raise FileNotFoundError(
-               f"Model artifact not found for version '{version}': {model_path}"
-          )
-     
-     model = joblib.load(model_path)
-
-     metadata_path = (
-          models_base_path
-          / version
-          / "metadata.json"
-     )
-
-     if not metadata_path.exists():
-          raise RuntimeError(
-               f"Metadata not found for version '{version}'"
-          )
-     
-     import json
-     with open(metadata_path) as f:
-          metadata = json.load(f)        
-     
-     production_version = registry.get_production()
+     version, source = resolve_model_version(registry, args.version)
 
      if source == "override":
-          if production_version:
-               logger.warning(
-                    "Loading OVERRIDE model version '%s' (production is '%s')",
-                    version,
-                    production_version,
-               )
-          else:
-               logger.warning(
-                    "Loading OVERRIDE model version '%s' (no production model set",
-                    version,
-               )
+          logger.warning("Loading OVERRIDE model version '%s'", version)
+     
+     model = load_model(models_path, version)
+     metadata = load_metadata(model_path, version) 
 
-     # Load inference data
+     # Load intference data (placeholder)
      df = pd.read_parquet("data/train.parquet")
 
-     target_col = metadata["dataset"]["target"]
-     X = df.drop(columns=[target_col])
+     target = metadata["dataset"]["target"]
+     X = df.drop(columns=[target])
 
-     # Validate schema before prediction
      validate_schema(X, metadata)
-     
-     # Run predictions
+
      predictions = model.predict(X)
 
      log_predictions(X, predictions, version)
 
      logger.info("Generated %d predictions", len(predictions))
      logger.debug("Sample predictions: %s", predictions[:10])
+
+# ----------------------------------------------------
+# Entrypoint
+# ----------------------------------------------------
 
 if __name__ == "__main__":
     args = parse_args()

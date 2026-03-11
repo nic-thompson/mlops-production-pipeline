@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from registry import ModelRegistry
+from mlops.registry import ModelRegistry
 
 def create_fake_model(base_path: Path, version: str):
     version_dir = base_path / version
