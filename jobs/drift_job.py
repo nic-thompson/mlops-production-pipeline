@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-from src.drift import DriftDetector
+from src.mlops.drift import DriftDetector
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run drift detection job")
@@ -57,7 +57,10 @@ def run_drift_job(
         logger.info("Logging datasets...")
 
         reference_df = pd.read_parquet(reference_path)
-        current_df = load_recent_predictions(days=1)
+        current_df = load_recent_predictions(hours=24)
+
+        # Align columns
+        current_df = current_df[reference_df.columns]
 
         logger.info("Running drift detection...")
         detector = DriftDetector(threshold=threshold)
@@ -102,7 +105,10 @@ def load_recent_predictions(hours=24):
     df = pd.concat(dfs, ignore_index=True)
 
     # Remove monitoring columns
-    df = df.drop(columns=["prediction", "model_version", "timestamp"], errors="ignore")  
+    df = df.drop(
+        columns=["prediction", "model_version", "timestamp", "index"], 
+        errors="ignore"
+    )  
 
     return df
   

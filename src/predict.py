@@ -119,7 +119,7 @@ def main(args):
           logger.warning("Loading OVERRIDE model version '%s'", version)
      
      model = load_model(models_path, version)
-     metadata = load_metadata(model_path, version) 
+     metadata = load_metadata(models_path, version) 
 
      # Load intference data (placeholder)
      df = pd.read_parquet("data/train.parquet")

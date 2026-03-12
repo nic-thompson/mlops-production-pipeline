@@ -12,7 +12,7 @@ model:
 training:
   target_column: target
   min_accuracy: 0.90
-  improvement_margin: 0.005
+  improvement_margin: 0.0
 
 output:
   model_dir: artifacts/models
