@@ -43,10 +43,15 @@ class DriftDetector:
 
             drift_scores = self.detect_feature_drift(reference_df, current_df)
             drift_detected = self.has_drift(drift_scores)
+            drifted_features = [
+                 feature for feature, p in drift_scores.items()
+                 if p < self.threshold
+            ]
 
             return {
                  "timestamp": datetime.utcnow().isoformat(),
                  "threshold": self.threshold,
                  "drift_detected": drift_detected,
+                 "drifted_features": drifted_features,
                  "feature_p_values": drift_scores,
             }

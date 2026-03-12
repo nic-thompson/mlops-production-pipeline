@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 from src.mlops.drift import DriftDetector
+from src.mlops.alerts import send_alert
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run drift detection job")
@@ -59,6 +60,9 @@ def run_drift_job(
         reference_df = pd.read_parquet(reference_path)
         current_df = load_recent_predictions(hours=24)
 
+        # Remove target column if present
+        reference_df = reference_df.drop(columns=["target"], errors="ignore")
+
         # Align columns
         current_df = current_df[reference_df.columns]
 
@@ -76,6 +80,11 @@ def run_drift_job(
             json.dump(report, f, indent=2)
 
         if report["drift_detected"]:
+            send_alert(
+                title="Data Drift Detected",
+                message=f"Drift detected in features: {report.get('drifted_features', [])}",
+                severity="critical"
+            )
             logger.info("Drift detected.")
             return 1
         else:
