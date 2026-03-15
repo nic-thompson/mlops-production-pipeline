@@ -2,8 +2,7 @@ import argparse
 import logging
 from pathlib import Path
 import yaml
-
-from registry import ModelRegistry
+from src.mlops.registry import ModelRegistry
 
 def configure_logging():
     logging.basicConfig(

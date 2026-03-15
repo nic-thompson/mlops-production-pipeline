@@ -2,7 +2,7 @@ import logging
 import sys
 from pathlib import Path
 
-from src.registry import ModelRegistry
+from src.mlops.registry import ModelRegistry
 
 # -------------------------------
 # Logging
