@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 from src.mlops.drift import DriftDetector
 from src.mlops.alerts import send_alert
+from src.mlops.retraining import trigger_retraining
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run drift detection job")
@@ -86,6 +87,9 @@ def run_drift_job(
                 severity="critical"
             )
             logger.info("Drift detected.")
+
+            trigger_retraining()
+
             return 1
         else:
             logger.info("No drift detected")
