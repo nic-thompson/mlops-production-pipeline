@@ -31,3 +31,6 @@ clean:
 
 pipeline:
 	python -m training.pipeline
+
+mlops:
+	python -m src.mlops.cli
