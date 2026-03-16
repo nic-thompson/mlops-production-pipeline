@@ -1,8 +1,10 @@
+import sys
 import json
 import logging
 import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from mlops.observability.metrics import retraining_runs_total
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +46,12 @@ def trigger_retraining():
     
     logger.warning("Triggering automatic retraining pipeline.")
 
+    # Increment Prometheus metric
+    retraining_runs_total.inc()
+
     try:
         subprocess.run(
-            ["python", "-m", "training.pipeline"],
+            [sys.executable, "-m", "training.pipeline"],
             check=True
         )
     

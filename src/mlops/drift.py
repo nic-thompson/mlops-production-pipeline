@@ -1,7 +1,8 @@
 import pandas as pd
 from typing import Dict
 from scipy.stats import ks_2samp
-from datetime import datetime 
+from datetime import datetime, timezone
+from mlops.observability.metrics import drift_score
 
 class DriftDetector:
     def __init__(self, threshold: float = 0.05):
@@ -48,8 +49,14 @@ class DriftDetector:
                  if p < self.threshold
             ]
 
+            # Update Prometheus drift metric
+            if drift_scores:
+                 drift_score.set(min(drift_scores.values()))
+            else:
+                 drift_score.set(1.0)
+
             return {
-                 "timestamp": datetime.utcnow().isoformat(),
+                 "timestamp": datetime.now(timezone.utc).isoformat(),
                  "threshold": self.threshold,
                  "drift_detected": drift_detected,
                  "drifted_features": drifted_features,
