@@ -4,6 +4,7 @@ import time
 import logging
 
 from jobs.drift_job import run_drift_job
+from mlops.observability.server import start_metrics_server
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +28,9 @@ signal.signal(signal.SIGTERM, stop_service)
 def monitoring_loop():
 
     logger.info("Starting monitoring service")
+
+    # Start Prometheus metrics endpoint
+    start_metrics_server(8000)
 
     while running:
 
